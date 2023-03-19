@@ -1,6 +1,6 @@
 import yaml
 
-N_CLIENTS = 3
+N_CLIENTS = 1
 
 my_dict = {
     "networks": {
@@ -15,6 +15,7 @@ my_dict = {
             "entrypoint": "python3 /main.py",
             "environment": ["PYTHONUNBUFFERED=1", "LOGGING_LEVEL=DEBUG"],
             "networks": ["testing_net"],
+            "volumes": ["./server/config.ini:/config.ini"],
         }
     },
     "version": "3.9",
@@ -30,8 +31,8 @@ for i in range(N_CLIENTS):
         "environment": [f"CLI_ID={i+1}", "LOGGING_LEVEL=DEBUG"],
         "networks": ["testing_net"],
         "depends_on": ["server"],
+        "volumes": ["./client/config.yaml:/config.yaml"],
     }
-
 
 with open("docker-compose-dev.yaml", "w") as f:
     yaml.dump(my_dict, f)
