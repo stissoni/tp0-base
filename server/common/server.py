@@ -1,6 +1,8 @@
 import socket
 import logging
 import signal
+import json
+from common.utils import Bet, store_bets
 
 
 class GracefulKiller:
@@ -45,16 +47,53 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode("utf-8")
-            addr = client_sock.getpeername()
+            # Initialize an empty byte string to store the received data
+            data = b""
+            obj = None
+            # Loop until the entire message has been received
+            while True:
+                # Receive up to 1024 bytes of data
+                chunk = client_sock.recv(1024)
+
+                # Check if the socket has been closed
+                if not chunk:
+                    # The socket has been closed, so break out of the loop
+                    break
+
+                # Append the received chunk to the data byte string
+                data += chunk
+
+                try:
+                    obj = json.loads(data.decode("utf-8"))
+                    # A complete JSON object has been received, so break out of the loop
+                    break
+                except json.JSONDecodeError:
+                    # The received data is not a complete JSON object yet, so continue the loop
+                    pass
+
+            # Decode the received message
+
+            agency = obj["agencia"]
+            first_name = obj["nombre"]
+            last_name = obj["apellido"]
+            doc = obj["doc"]
+            birthdate = obj["nacimiento"]
+            bet_num = obj["numero"]
+
+            bet = Bet(agency, first_name, last_name, doc, birthdate, bet_num)
+            # Save the bet and log it
+            store_bets([bet])
             logging.info(
-                f"action: receive_message | result: success | ip: {addr[0]} | msg: {msg}"
+                f"action: apuesta_almacenada | result: success | dni: {doc} | numero: {bet_num} "
             )
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode("utf-8"))
+
+            msg = f"Apuesta {bet_num} recibida"
+            msg_bytes = "{}\n".format(msg).encode("utf-8")
+            bytes_sent = 0
+            while bytes_sent < len(msg_bytes):
+                bytes_sent += client_sock.send(msg_bytes[bytes_sent:])
         except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
 

@@ -2,13 +2,11 @@ package common
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"time"
 	"os"
-    "os/signal"
-    "syscall"
-
+	"io"
+	"encoding/json"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -53,60 +51,56 @@ func (c *Client) createClientSocket() error {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	// autoincremental msgID to identify every message sent
-	msgID := 1
-
-	// Create a channel to receive SIGTERM signal
-    sigChan := make(chan os.Signal, 1)
-    signal.Notify(sigChan, syscall.SIGTERM)
-
-loop:
-	// Send messages if the loopLapse threshold has not been surpassed
-	for timeout := time.After(c.config.LoopLapse); ; {
-		select {
-		case <-timeout:
-	        log.Infof("action: timeout_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		case sig := <-sigChan:
-            log.Infof("action: signal_received | result: success | client_id: %v | signal: %v",
-                c.config.ID,
-                sig,
-            )
-            break loop
-		default:
-		}
-
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
-
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		msgID++
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-                c.config.ID,
-				err,
-			)
-			return
-		}
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-            c.config.ID,
-            msg,
-        )
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
+	
+	AGENCIA := os.Getenv("CLI_ID")
+	NOMBRE := os.Getenv("NOMBRE")
+	APELLIDO := os.Getenv("APELLIDO")
+	DOCUMENTO := os.Getenv("DOCUMENTO")
+	NACIMIENTO := os.Getenv("NACIMIENTO")
+	NUMERO := os.Getenv("NUMERO")
+	
+	// Create a map with the JSON data
+	data := map[string]string{
+		"agencia":    AGENCIA,
+		"nombre":     NOMBRE,
+		"apellido":   APELLIDO,
+		"doc":        DOCUMENTO,
+		"nacimiento": NACIMIENTO,
+		"numero":     NUMERO,
 	}
 
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	// Encode the data into JSON
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Errorf("Error encoding JSON:", err)
+		return
+	}
+
+	// Create the connection the server in every loop iteration. Send an
+	c.createClientSocket()
+
+	// Write the message to the connection
+	_, err = io.WriteString(c.conn, string(jsonData))
+	if err != nil {
+		log.Errorf("Error sending data:", err)
+		return
+	}
+	log.Infof("action: apuesta_enviada | result: success | dni:%v | numero: %v", DOCUMENTO, NUMERO)
+
+	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+	c.conn.Close()
+
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return
+	}
+	log.Infof("action: receive_message | result: success | message: %v",
+		msg,
+	)
+	
+	log.Infof("action: send_bet_finished | result: success | client_id: %v", c.config.ID)
+	
 }
