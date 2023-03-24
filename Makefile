@@ -26,7 +26,7 @@ docker-image:
 .PHONY: docker-image
 
 docker-compose-up: docker-image
-	docker compose -f docker-compose-dev.yaml --profile dev up -d --build
+	docker compose -f docker-compose-dev.yaml --profile prod up -d --build
 .PHONY: docker-compose-up
 
 docker-compose-down:
