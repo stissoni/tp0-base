@@ -34,6 +34,7 @@ func InitConfig() (*viper.Viper, error) {
 	v.BindEnv("server", "address")
 	v.BindEnv("loop", "period")
 	v.BindEnv("loop", "lapse")
+	v.BindEnv("loop", "batch_size")
 	v.BindEnv("log", "level")
 
 	// Try to read configuration from config file. If config file
@@ -66,11 +67,11 @@ func InitLogger(logLevel string) error {
 		return err
 	}
 
-    customFormatter := &logrus.TextFormatter{
-      TimestampFormat: "2006-01-02 15:04:05",
-      FullTimestamp: false,
-    }
-    logrus.SetFormatter(customFormatter)
+	customFormatter := &logrus.TextFormatter{
+		TimestampFormat: "2006-01-02 15:04:05",
+		FullTimestamp:   false,
+	}
+	logrus.SetFormatter(customFormatter)
 	logrus.SetLevel(level)
 	return nil
 }
@@ -79,12 +80,13 @@ func InitLogger(logLevel string) error {
 // For debugging purposes only
 func PrintConfig(v *viper.Viper) {
 	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_lapse: %v | loop_period: %v | log_level: %s",
-	    v.GetString("id"),
-	    v.GetString("server.address"),
-	    v.GetDuration("loop.lapse"),
-	    v.GetDuration("loop.period"),
-	    v.GetString("log.level"),
-    )
+		v.GetString("id"),
+		v.GetString("server.address"),
+		v.GetDuration("loop.lapse"),
+		v.GetDuration("loop.period"),
+		v.GetString("log.level"),
+		v.GetString("loop.batch_size"),
+	)
 }
 
 func main() {
@@ -105,8 +107,23 @@ func main() {
 		ID:            v.GetString("id"),
 		LoopLapse:     v.GetDuration("loop.lapse"),
 		LoopPeriod:    v.GetDuration("loop.period"),
+		BatchSize:     v.GetString("loop.batch_size"),
 	}
 
 	client := common.NewClient(clientConfig)
+
+	log.Infof("action: iniciando loop")
 	client.StartClientLoop()
+	log.Infof("action: notificando apuestas cargadas")
+	client.NotifyBatchDone()
+	log.Infof("action: requiriendo ganadores")
+	for {
+		ended := client.RequestWinners()
+		if ended {
+			break
+		} else {
+			log.Infof("Esperando a que el sorteo comience...")
+			time.Sleep(5 * time.Second)
+		}
+	}
 }

@@ -13,17 +13,69 @@ services:
     environment:
       - CLI_ID=1
       - LOGGING_LEVEL=DEBUG
-      - NOMBRE=Santiago Lionel
-      - APELLIDO=Lorca
-      - DOCUMENTO=30904465
-      - NACIMIENTO=1999-03-17
-      - NUMERO=7574
     image: client:latest
     networks:
       - testing_net
     volumes:
       - ./client/config.yaml:/config.yaml
     profiles: [ "prod" ]
+  client2:
+    container_name: client2
+    depends_on:
+      - server
+    entrypoint: /client
+    environment:
+      - CLI_ID=2
+      - LOGGING_LEVEL=DEBUG
+    image: client:latest
+    networks:
+      - testing_net
+    volumes:
+      - ./client/config.yaml:/config.yaml
+    profiles: [ "prod" ]
+  client3:
+    container_name: client3
+    depends_on:
+      - server
+    entrypoint: /client
+    environment:
+      - CLI_ID=3
+      - LOGGING_LEVEL=DEBUG
+    image: client:latest
+    networks:
+      - testing_net
+    volumes:
+      - ./client/config.yaml:/config.yaml
+    profiles: [ "prod" ]
+  client4:
+    container_name: client4
+    depends_on:
+      - server
+    entrypoint: /client
+    environment:
+      - CLI_ID=4
+      - LOGGING_LEVEL=DEBUG
+    image: client:latest
+    networks:
+      - testing_net
+    volumes:
+      - ./client/config.yaml:/config.yaml
+    profiles: [ "prod" ]
+  client5:
+    container_name: client5
+    depends_on:
+      - server
+    entrypoint: /client
+    environment:
+      - CLI_ID=5
+      - LOGGING_LEVEL=DEBUG
+    image: client:latest
+    networks:
+      - testing_net
+    volumes:
+      - ./client/config.yaml:/config.yaml
+    profiles: [ "prod" ]
+
   server:
     container_name: server
     entrypoint: python3 /main.py
