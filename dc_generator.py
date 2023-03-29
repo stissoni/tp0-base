@@ -1,6 +1,6 @@
 import yaml
 
-N_CLIENTS = 1
+N_CLIENTS = 5
 
 my_dict = {
     "networks": {
@@ -32,6 +32,7 @@ for i in range(N_CLIENTS):
         "networks": ["testing_net"],
         "depends_on": ["server"],
         "volumes": ["./client/config.yaml:/config.yaml"],
+        "profiles": ["prod"],
     }
 
 with open("docker-compose-dev.yaml", "w") as f:
