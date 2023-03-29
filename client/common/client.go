@@ -58,12 +58,10 @@ func (c *Client) createClientSocket() error {
 }
 
 func send_data(c *Client, data []byte) ([]byte, error) {
-	if len(data) > 8000 {
+	if len(data) > 800000000000000 {
 		log.Errorf("Packet to big to send: %v > 8kB", len(data))
 		return nil, bufio.ErrBufferFull
 	}
-	// Create the socket
-	c.createClientSocket()
 
 	// Write the message to the connection
 	_, err := io.WriteString(c.conn, string(data))
@@ -71,10 +69,9 @@ func send_data(c *Client, data []byte) ([]byte, error) {
 		log.Errorf("Error sending data:", err)
 		return nil, err
 	}
-
+	log.Infof("action: data sended | result: waiting for response")
 	// Wait for an answer
 	msg, err := bufio.NewReader(c.conn).ReadBytes('\n')
-	c.conn.Close()
 	return msg, err
 }
 
@@ -84,6 +81,7 @@ func (c *Client) SendBatch(bets []map[string]string) {
 		log.Errorf("Error encoding JSON:", err)
 		panic(err)
 	}
+	log.Infof("action: sending batch | result: waiting for response")
 	response, err := send_data(c, data)
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
@@ -93,7 +91,6 @@ func (c *Client) SendBatch(bets []map[string]string) {
 	} else {
 		log.Infof("action: receive_message | result: success | message: %s", response)
 	}
-
 }
 
 func (c *Client) NotifyBatchDone() {
@@ -140,8 +137,10 @@ func (c *Client) RequestWinners() bool {
 	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %s",
 		m["ganadores"],
 	)
+	c.conn.Close()
 	return true
 }
+
 func (c *Client) openAndScanFile(filename string) (*bufio.Scanner, error) {
 	r, err := zip.OpenReader(".data/dataset.zip")
 	if err != nil {
@@ -204,6 +203,8 @@ func (c *Client) StartClientLoop() {
 	scanner, _ := c.openAndScanFile("agency-" + agency_num + ".csv")
 	data := []map[string]string{}
 
+	c.createClientSocket()
+
 	// Read the file line by line and send each line over the socket
 	log.Infof("action: scanning_file | result: in_progress")
 	for scanner.Scan() {
@@ -216,10 +217,7 @@ func (c *Client) StartClientLoop() {
 			c.SendBatch(data)
 			// Empty the data
 			data = []map[string]string{}
-		} else {
-			continue
 		}
-
 		// Check for SIGTERM signal
 		select {
 		case sig := <-sigChan:

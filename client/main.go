@@ -117,13 +117,5 @@ func main() {
 	log.Infof("action: notificando apuestas cargadas")
 	client.NotifyBatchDone()
 	log.Infof("action: requiriendo ganadores")
-	for {
-		ended := client.RequestWinners()
-		if ended {
-			break
-		} else {
-			log.Infof("Esperando a que el sorteo comience...")
-			time.Sleep(5 * time.Second)
-		}
-	}
+	client.RequestWinners()
 }

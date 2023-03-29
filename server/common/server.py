@@ -3,27 +3,10 @@ import logging
 import signal
 import json
 from common.utils import Bet, store_bets, load_bets, has_won
+from multiprocessing import Process, Lock, Barrier
 
 
 class AgenciaNacional:
-    def __init__(self):
-        self.num_agencias = 5
-        self.agencias_listas = 0
-        self.sorteo_realizado = False
-
-    def notificar_apuestas_cargadas(self, numero_agencia):
-        self.agencias_listas += 1
-        logging.info(
-            f"action: apuestas_cargadas | agency : {numero_agencia} | agencias listas: {self.agencias_listas}"
-        )
-
-    def empezar_el_sorteo(self):
-        if self.num_agencias == self.agencias_listas:
-            logging.info("action: sorteo | result: success")
-            self.sorteo_realizado = True
-            return True
-        return False
-
     def consultar_ganadores(self, numero_agencia):
         logging.info(f"action: consultar_ganadores | agency : {numero_agencia}")
         bets = load_bets()
@@ -38,11 +21,13 @@ class AgenciaNacional:
                     ganadores = ganadores + 1
         return ganadores
 
-    def guardar_apuestas(self, bets: list[Bet]):
+    def guardar_apuestas(self, bets: list[Bet], lock):
+        lock.acquire()
+        store_bets(bets)
+        lock.release()
         logging.info(
             f"action: apuestas_almacenada | result: success | nuevas apuestas: {len(bets)}"
         )
-        store_bets(bets)
 
 
 class AgenciasAPI:
@@ -56,42 +41,60 @@ class AgenciasAPI:
 
         return Bet(numero_agencia, first_name, last_name, doc, birthdate, numero)
 
-    def generate_response(self, request, agencia_nacional):
+    def generate_response(self, request, agencia_nacional, lock, barrier):
         # Check the request type and generate response
         if isinstance(request, dict):
             numero_agencia = request["agencia"]
             if request["type"] == "ready":
-                agencia_nacional.notificar_apuestas_cargadas(numero_agencia)
-                agencia_nacional.empezar_el_sorteo()
+                logging.info("action: request de 'ready' recibida | status: processing")
                 json_response = {
                     "type": "ready",
                     "agencia": numero_agencia,
                     "message": "apuestas_cargadas",
                 }
+                logging.info(
+                    f"action: request de 'ready' recibida | status: complete | response: {json_response}"
+                )
+                return json_response
 
             if request["type"] == "consultar_ganadores":
-                if not agencia_nacional.sorteo_realizado:
-                    json_response = {
-                        "type": "error",
-                        "message": f"sorteo no realizado. Agencias listas: {agencia_nacional.agencias_listas}",
-                    }
-                else:
-                    ganadores = agencia_nacional.consultar_ganadores(numero_agencia)
-                    json_response = {
-                        "type": "consultar_ganadores",
-                        "agencia": numero_agencia,
-                        "ganadores": f"{ganadores}",
-                    }
+                logging.info(
+                    "action: request de 'consultar ganadores' recibida | status: waiting"
+                )
+                barrier.wait()
+                ganadores = agencia_nacional.consultar_ganadores(numero_agencia)
+                json_response = {
+                    "type": "consultar_ganadores",
+                    "agencia": numero_agencia,
+                    "ganadores": f"{ganadores}",
+                }
+                logging.info(
+                    f"action: request de 'consultar ganadores' recibida | status: complete | response: {json_response}"
+                )
+            return json_response
 
         # Save the bet, log it and generate response
         if isinstance(request, list):
+            logging.info(
+                "action: request de 'store batch' recibida | status: processing"
+            )
             bets = [self.decode_bet(json) for json in request]
-            agencia_nacional.guardar_apuestas(bets)
-            json_response = {
-                "type": "batch_cargado",
-                "message": f"cargado batch de {len(bets)} apuestas",
-            }
-        return json_response
+            try:
+                agencia_nacional.guardar_apuestas(bets, lock)
+                json_response = {
+                    "type": "batch_cargado",
+                    "message": f"cargado batch de {len(bets)} apuestas",
+                }
+            except:
+                logging.error("error saving bets")
+                json_response = {
+                    "type": "batch_cargado",
+                    "message": f"ERORR: no fue posible guardar batch de {len(bets)} apuestas",
+                }
+            logging.info(
+                f"action: request de 'store batch' recibida | status: complete | response: {json_response}"
+            )
+            return json_response
 
 
 class SocketWrapper:
@@ -168,14 +171,22 @@ class Server:
         """
         agencia = AgenciaNacional()
         killer = GracefulKiller()
+        lock = Lock()
+        barrier = Barrier(5)
         while not killer.kill_now:
             client_sock = self.__accept_new_connection()
             client_sock = SocketWrapper(client_sock)
-            self.__handle_client_connection(client_sock, agencia)
+            p = Process(
+                target=self.__handle_client_connection,
+                args=(client_sock, agencia, lock, barrier),
+            )
+            p.start()
         self._server_socket.close()
         logging.info("action: closing_sockets | result: sockets closed succesfully!")
 
-    def __handle_client_connection(self, client_sock: SocketWrapper, agencia):
+    def __handle_client_connection(
+        self, client_sock: SocketWrapper, agencia, lock, barrier
+    ):
         """
         Read message from a specific client socket and closes the socket
 
@@ -184,21 +195,22 @@ class Server:
         """
         api = AgenciasAPI()
 
-        try:
+        while True:
             # Receive the data
+            logging.info("action: wating for data from clientes...")
             data = client_sock.receive_data()
 
             # Check request type and proceed
-            response = api.generate_response(data, agencia)
+            response = api.generate_response(data, agencia, lock, barrier)
 
             # Response client
             client_sock.send_data(response)
 
-        except Exception as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
+            if response["type"] == "consultar_ganadores":
+                # El protocolo termino ok. Salimos del loop.
+                break
 
-        finally:
-            client_sock.close()
+        client_sock.close()
 
     def __accept_new_connection(self):
         """
