@@ -15,7 +15,7 @@ docker build -f ./server/Dockerfile -t "server:latest" .
 Ejecutar docker compose para levantar el servidor junto a los clientes utilizando el profile dev
 
 ```
-docker compose -f docker-compose-dev.yaml --profile prod up -d --build
+docker compose -f docker-compose-dev.yaml --profile dev up -d --build
 ```
 
 Abrir una terminal dentro del container
