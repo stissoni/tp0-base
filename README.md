@@ -21,3 +21,9 @@ Ejecutar docker compose para levantar el servidor junto a los clientes utilizand
 ```
 docker compose -f docker-compose-dev.yaml --profile prod up -d --build
 ```
+
+Para probar netcat pasarse al branch 3 y seguir el README
+
+```
+git checkout 3 
+```
