@@ -89,6 +89,8 @@ services:
     image: server:latest
     networks:
     - testing_net
+    profiles:
+    - prod
     volumes:
     - ./server/config.ini:/config.ini
 version: '3.9'

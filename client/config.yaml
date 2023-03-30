@@ -4,6 +4,7 @@ server:
 loop:
   lapse: "0m20s"
   period: "5s"
-  batch_size: "10000"
+  batch_size: "50"
+  max_packet_size: 8000
 log:
   level: "info"

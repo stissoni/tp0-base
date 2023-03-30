@@ -4,14 +4,13 @@ import (
 	"archive/zip"
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"os"
-	"os/signal"
+
 	"strconv"
 	"strings"
-	"syscall"
+
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -22,6 +21,7 @@ type ClientConfig struct {
 	ID            string
 	ServerAddress string
 	BatchSize     string
+	MaxPacketSize string
 	LoopLapse     time.Duration
 	LoopPeriod    time.Duration
 }
@@ -57,14 +57,25 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
+type PacketToBig struct{}
+
+func (myerr *PacketToBig) Error() string {
+	return "Packet to big to send!"
+}
+
 func send_data(c *Client, data []byte) ([]byte, error) {
-	if len(data) > 800000000000000 {
-		log.Errorf("Packet to big to send: %v > 8kB", len(data))
-		return nil, bufio.ErrBufferFull
+	max_packet_size, err := strconv.Atoi(c.config.MaxPacketSize)
+	log.Infof("Max packet size: %v", max_packet_size)
+	if err != nil {
+		panic(err)
+	}
+	if len(data) > max_packet_size {
+		log.Errorf("Packet to big to send: %v > %vB", len(data), max_packet_size)
+		return nil, &PacketToBig{}
 	}
 
 	// Write the message to the connection
-	_, err := io.WriteString(c.conn, string(data))
+	_, err = io.WriteString(c.conn, string(data))
 	if err != nil {
 		log.Errorf("Error sending data:", err)
 		return nil, err
@@ -75,11 +86,11 @@ func send_data(c *Client, data []byte) ([]byte, error) {
 	return msg, err
 }
 
-func (c *Client) SendBatch(bets []map[string]string) {
+func (c *Client) SendBatch(bets []map[string]string) error {
 	data, err := json.Marshal(bets)
 	if err != nil {
 		log.Errorf("Error encoding JSON:", err)
-		panic(err)
+		return err
 	}
 	log.Infof("action: sending batch | result: waiting for response")
 	response, err := send_data(c, data)
@@ -88,9 +99,11 @@ func (c *Client) SendBatch(bets []map[string]string) {
 			c.config.ID,
 			err,
 		)
+		return err
 	} else {
 		log.Infof("action: receive_message | result: success | message: %s", response)
 	}
+	return nil
 }
 
 func (c *Client) NotifyBatchDone() {
@@ -188,16 +201,16 @@ func (c *Client) GetBetFromLine(agency_num string, line string) map[string]strin
 	return new_bet
 }
 
+func (c *Client) CloseSocket() {
+	c.conn.Close()
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
+func (c *Client) StartClientLoop() error {
 	batch_size, err := strconv.Atoi(c.config.BatchSize)
 	if err != nil {
 		panic(err)
 	}
-
-	// Create a signal channel to receive SIGTERM signals
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGTERM)
 
 	agency_num := os.Getenv("CLI_ID")
 	scanner, _ := c.openAndScanFile("agency-" + agency_num + ".csv")
@@ -214,22 +227,21 @@ func (c *Client) StartClientLoop() {
 
 		if len(data) == batch_size {
 			// Send batch
-			c.SendBatch(data)
+			err := c.SendBatch(data)
+			if err != nil {
+				return err
+			}
 			// Empty the data
 			data = []map[string]string{}
-		}
-		// Check for SIGTERM signal
-		select {
-		case sig := <-sigChan:
-			fmt.Printf("Received signal: %v\n", sig)
-			break
-		default:
-			// No signal received, continue processing
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		panic(err)
 	}
 	log.Infof("action: scanning_file | result: success")
-	c.SendBatch(data)
+	err = c.SendBatch(data)
+	if err != nil {
+		return err
+	}
+	return nil
 }

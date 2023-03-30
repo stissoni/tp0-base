@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -86,6 +89,7 @@ func PrintConfig(v *viper.Viper) {
 		v.GetDuration("loop.period"),
 		v.GetString("log.level"),
 		v.GetString("loop.batch_size"),
+		v.GetString("loop.max_packet_size"),
 	)
 }
 
@@ -108,14 +112,32 @@ func main() {
 		LoopLapse:     v.GetDuration("loop.lapse"),
 		LoopPeriod:    v.GetDuration("loop.period"),
 		BatchSize:     v.GetString("loop.batch_size"),
+		MaxPacketSize: v.GetString("loop.max_packet_size"),
 	}
 
 	client := common.NewClient(clientConfig)
 
+	// Create a signal channel to receive SIGTERM signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM)
+
 	log.Infof("action: iniciando loop")
-	client.StartClientLoop()
-	log.Infof("action: notificando apuestas cargadas")
-	client.NotifyBatchDone()
-	log.Infof("action: requiriendo ganadores")
-	client.RequestWinners()
+	err = client.StartClientLoop()
+	if err != nil {
+		log.Errorf("Error en enviando batch")
+		return
+	}
+	// Check for SIGTERM signal
+	select {
+	case sig := <-sigChan:
+		log.Infof("received signal: %v\n", sig)
+		client.CloseSocket()
+		return
+	default:
+		log.Infof("action: notificando apuestas cargadas")
+		client.NotifyBatchDone()
+		log.Infof("action: requiriendo ganadores")
+		client.RequestWinners()
+	}
+
 }

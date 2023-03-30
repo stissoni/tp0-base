@@ -16,7 +16,8 @@ my_dict = {
             "environment": ["PYTHONUNBUFFERED=1", "LOGGING_LEVEL=DEBUG"],
             "networks": ["testing_net"],
             "volumes": ["./server/config.ini:/config.ini"],
-        }
+            "profiles": ["prod"],
+        },
     },
     "version": "3.9",
 }
