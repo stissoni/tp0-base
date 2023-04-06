@@ -16,23 +16,22 @@ class GracefulKiller:
         self.kill_now = True
 
 
-def read_all(client_sock, data_len):
-    # Helper function to recv n bytes or return None if EOF is hit
-    data = b""
-    while len(data) < data_len:
-        packet = client_sock.recv(1)
-        if not packet:
-            return None
-        data += packet
-    return data
-
-
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(("", port))
         self._server_socket.listen(listen_backlog)
+
+    def read_all(self, client_sock, data_len):
+        # Helper function to recv n bytes or return None if EOF is hit
+        data = b""
+        while len(data) < data_len:
+            packet = client_sock.recv(1)
+            if not packet:
+                return None
+            data += packet
+        return data
 
     def run(self):
         """
@@ -58,13 +57,13 @@ class Server:
         client socket will also be closed
         """
         try:
-            bytes = read_all(client_sock, 4)
+            bytes = self.read_all(client_sock, 4)
             serialization_len = int.from_bytes(bytes, byteorder="big")
 
-            serialization_bytes = read_all(client_sock, serialization_len)
+            serialization_bytes = self.read_all(client_sock, serialization_len)
 
             request = Packet.deserialize(serialization_bytes)
-            if request.type == "0":
+            if request.request_type == "store_bet":
                 bet = Bet(
                     request.agency,
                     request.first_name,
@@ -78,7 +77,7 @@ class Server:
                 logging.info(
                     f"action: apuesta_almacenada | result: success | dni: {request.doc} | numero: {request.bet_num}"
                 )
-                response = Packet("0", "OK")
+                response = Packet(request.request_type, "OK", request.agency)
                 response = response.serialize()
 
                 bytes_sent = 0

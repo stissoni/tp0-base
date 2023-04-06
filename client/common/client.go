@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -52,7 +53,6 @@ func (c *Client) createClientSocket() error {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-
 	AGENCIA := os.Getenv("CLI_ID")
 	NOMBRE := os.Getenv("NOMBRE")
 	APELLIDO := os.Getenv("APELLIDO")
@@ -60,7 +60,7 @@ func (c *Client) StartClientLoop() {
 	NACIMIENTO := os.Getenv("NACIMIENTO")
 	NUMERO := os.Getenv("NUMERO")
 
-	serializationStr := "0" + "," + "0" + "," + AGENCIA + "," + APELLIDO + "," + NOMBRE + "," + DOCUMENTO + "," + NACIMIENTO + "," + NUMERO
+	serializationStr := "store_bet" + "," + "OK" + "," + AGENCIA + "," + APELLIDO + "," + NOMBRE + "," + DOCUMENTO + "," + NACIMIENTO + "," + NUMERO
 	serializationBytes := []byte(serializationStr)
 	buffer := make([]byte, 0, len(serializationBytes)+4)
 	lengthBytes := make([]byte, 4)
@@ -80,8 +80,6 @@ func (c *Client) StartClientLoop() {
 	log.Infof("action: apuesta_enviada | result: success | dni:%v | numero: %v", DOCUMENTO, NUMERO)
 
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
-	c.conn.Close()
-
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
 			c.config.ID,
@@ -89,10 +87,12 @@ func (c *Client) StartClientLoop() {
 		)
 		return
 	}
+	c.conn.Close()
+
+	res := msg[4:]
+	res = strings.Split(res, ",")[0] + ":" + strings.Split(res, ",")[1] + "for client " + strings.Split(res, ",")[2]
 	log.Infof("action: receive_message | result: success | message: %v",
-		msg,
+		res,
 	)
-
 	log.Infof("action: send_bet_finished | result: success | client_id: %v", c.config.ID)
-
 }
