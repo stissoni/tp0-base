@@ -6,7 +6,7 @@ Por otro lado, se presenta una guía de ejercicios que los alumnos deberán reso
 
 ## Instrucciones de uso
 
-Ejecutar el .py dc_generator.py. Este script generar un archivo de configuracion de docker compose con un definido de clientes pasado por parametro al script.
+Ejecutar el .py **dc_generator.py**. Este script genera un archivo de configuracion de docker compose con un numero definido de clientes pasado por parametro al script.
 
 ```
 py dc_generator.py <numero de clientes>
