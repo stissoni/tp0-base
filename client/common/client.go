@@ -90,7 +90,7 @@ func (c *Client) StartClientLoop() {
 	c.conn.Close()
 
 	res := msg[4:]
-	res = strings.Split(res, ",")[0] + ":" + strings.Split(res, ",")[1] + "for client " + strings.Split(res, ",")[2]
+	res = strings.Split(res, ",")[0] + ":" + strings.Split(res, ",")[1] + " for client " + strings.Split(res, ",")[2]
 	log.Infof("action: receive_message | result: success | message: %v",
 		res,
 	)
