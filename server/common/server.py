@@ -1,8 +1,8 @@
 import socket
 import logging
 import signal
-import json
 from common.utils import Bet, store_bets
+from common.packet import Packet
 
 
 class GracefulKiller:
@@ -62,30 +62,28 @@ class Server:
             serialization_len = int.from_bytes(bytes, byteorder="big")
 
             serialization_bytes = read_all(client_sock, serialization_len)
-            serialization_str = serialization_bytes.decode("utf-8")
-            serialization_list = serialization_str.split(",")
 
-            request_type = serialization_list[0]
-            if request_type == "0":
-                agency = serialization_list[2]
-                first_name = serialization_list[3]
-                last_name = serialization_list[4]
-                doc = serialization_list[5]
-                birthdate = serialization_list[6]
-                bet_num = serialization_list[7]
-
-                bet = Bet(agency, first_name, last_name, doc, birthdate, bet_num)
+            request = Packet.deserialize(serialization_bytes)
+            if request.type == "0":
+                bet = Bet(
+                    request.agency,
+                    request.first_name,
+                    request.last_name,
+                    request.doc,
+                    request.birthdate,
+                    request.bet_num,
+                )
                 # Save the bet and log it
                 store_bets([bet])
                 logging.info(
-                    f"action: apuesta_almacenada | result: success | dni: {doc} | numero: {bet_num}"
+                    f"action: apuesta_almacenada | result: success | dni: {request.doc} | numero: {request.bet_num}"
                 )
+                response = Packet("0", "OK")
+                response = response.serialize()
 
-                msg = f"Apuesta {bet_num} recibida"
-                msg_bytes = "{}\n".format(msg).encode("utf-8")
                 bytes_sent = 0
-                while bytes_sent < len(msg_bytes):
-                    bytes_sent += client_sock.send(msg_bytes[bytes_sent:])
+                while bytes_sent < len(response):
+                    bytes_sent += client_sock.send(response[bytes_sent:])
             else:
                 pass
         except OSError as e:
