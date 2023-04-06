@@ -16,6 +16,19 @@ class GracefulKiller:
         self.kill_now = True
 
 
+def read_all(client_sock, len):
+    # Helper function to recv n bytes or return None if EOF is hit
+    data = b""
+    i = 0
+    while i < len:
+        packet = client_sock.recv(1)
+        if not packet:
+            return None
+        data += packet
+        i += 1
+    return data
+
+
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
@@ -47,51 +60,36 @@ class Server:
         client socket will also be closed
         """
         try:
-            # Initialize an empty byte string to store the received data
-            data = b""
-            obj = None
-            # Loop until the entire message has been received
-            while True:
-                # Receive up to 1024 bytes of data
-                chunk = client_sock.recv(1024)
+            bytes = read_all(client_sock, 4)
+            serialization_len = int.from_bytes(bytes, byteorder="big")
 
-                # Check if the socket has been closed
-                if not chunk:
-                    # The socket has been closed, so break out of the loop
-                    break
+            serialization_bytes = read_all(client_sock, serialization_len)
+            serialization_str = serialization_bytes.decode("utf-8")
+            serialization_list = serialization_str.split(",")
 
-                # Append the received chunk to the data byte string
-                data += chunk
+            request_type = serialization_list[0]
+            if request_type == "0":
+                agency = serialization_list[2]
+                first_name = serialization_list[3]
+                last_name = serialization_list[4]
+                doc = serialization_list[5]
+                birthdate = serialization_list[6]
+                bet_num = serialization_list[7]
 
-                try:
-                    obj = json.loads(data.decode("utf-8"))
-                    # A complete JSON object has been received, so break out of the loop
-                    break
-                except json.JSONDecodeError:
-                    # The received data is not a complete JSON object yet, so continue the loop
-                    pass
+                bet = Bet(agency, first_name, last_name, doc, birthdate, bet_num)
+                # Save the bet and log it
+                store_bets([bet])
+                logging.info(
+                    f"action: apuesta_almacenada | result: success | dni: {doc} | numero: {bet_num}"
+                )
 
-            # Decode the received message
-
-            agency = obj["agencia"]
-            first_name = obj["nombre"]
-            last_name = obj["apellido"]
-            doc = obj["doc"]
-            birthdate = obj["nacimiento"]
-            bet_num = obj["numero"]
-
-            bet = Bet(agency, first_name, last_name, doc, birthdate, bet_num)
-            # Save the bet and log it
-            store_bets([bet])
-            logging.info(
-                f"action: apuesta_almacenada | result: success | dni: {doc} | numero: {bet_num} "
-            )
-
-            msg = f"Apuesta {bet_num} recibida"
-            msg_bytes = "{}\n".format(msg).encode("utf-8")
-            bytes_sent = 0
-            while bytes_sent < len(msg_bytes):
-                bytes_sent += client_sock.send(msg_bytes[bytes_sent:])
+                msg = f"Apuesta {bet_num} recibida"
+                msg_bytes = "{}\n".format(msg).encode("utf-8")
+                bytes_sent = 0
+                while bytes_sent < len(msg_bytes):
+                    bytes_sent += client_sock.send(msg_bytes[bytes_sent:])
+            else:
+                pass
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
