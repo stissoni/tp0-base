@@ -16,16 +16,14 @@ class GracefulKiller:
         self.kill_now = True
 
 
-def read_all(client_sock, len):
+def read_all(client_sock, data_len):
     # Helper function to recv n bytes or return None if EOF is hit
     data = b""
-    i = 0
-    while i < len:
+    while len(data) < data_len:
         packet = client_sock.recv(1)
         if not packet:
             return None
         data += packet
-        i += 1
     return data
 
 
